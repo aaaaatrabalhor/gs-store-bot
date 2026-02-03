@@ -61,7 +61,17 @@ produtos_drop = load_produtos_drop()
 # Verificar se é dono do servidor ou administrador
 def is_owner_or_admin():
     async def predicate(ctx):
-        return ctx.author.id == ctx.guild.owner_id or ctx.author.guild_permissions.administrator
+        # Verifica se é o dono do servidor
+        if ctx.author.id == ctx.guild.owner_id:
+            return True
+        
+        # Verifica se tem permissão de administrador
+        if ctx.author.guild_permissions.administrator:
+            return True
+        
+        # Se não for nenhum dos dois, retorna False
+        return False
+    
     return commands.check(predicate)
 
 # Verificar se é dono do servidor
@@ -79,6 +89,22 @@ async def on_ready():
         type=discord.ActivityType.watching, 
         name="vendas | .setup"
     ))
+
+# Event handler para erros de permissão
+@bot.event
+async def on_command_error(ctx, error):
+    if isinstance(error, commands.CheckFailure):
+        embed = discord.Embed(
+            title="❌ Acesso Negado",
+            description="Você precisa ser **Administrador** ou **Dono do Servidor** para usar este comando!",
+            color=discord.Color.red()
+        )
+        embed.set_footer(text="Apenas membros autorizados podem gerenciar o bot")
+        await ctx.send(embed=embed, delete_after=10)
+    elif isinstance(error, commands.CommandNotFound):
+        pass  # Ignora comandos não encontrados
+    else:
+        print(f"Erro: {error}")
 
 # Comando SETUP - Painel principal
 @bot.command(name='setup')
@@ -100,7 +126,7 @@ async def setup(ctx):
     embed.add_field(name="📦 Produtos", value=f"{produtos_count} cadastrados", inline=True)
     embed.add_field(name="📋 Produtos Drop", value=f"{produtos_drop_count} cadastrados", inline=True)
     
-    embed.set_footer(text="Use os botões abaixo para gerenciar o bot")
+    embed.set_footer(text=f"Comando usado por: {ctx.author.name} | Use os botões abaixo para gerenciar o bot")
     
     # Criar botões
     btn_categoria = Button(label="📁 Configurar Categoria", style=discord.ButtonStyle.primary, row=0)
@@ -118,8 +144,20 @@ async def setup(ctx):
     btn_listar_produtos = Button(label="📋 Listar Produtos", style=discord.ButtonStyle.secondary, row=4)
     btn_listar_drop = Button(label="📋 Listar Produtos Drop", style=discord.ButtonStyle.secondary, row=4)
     
+    # Função para verificar permissões nas interações
+    def check_permissions(interaction):
+        return (interaction.user.id == interaction.guild.owner_id or 
+                interaction.user.guild_permissions.administrator)
+    
     # Callbacks
     async def categoria_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         categorias = [cat for cat in interaction.guild.categories]
         
         if not categorias:
@@ -134,6 +172,13 @@ async def setup(ctx):
         select = Select(placeholder="Escolha uma categoria...", options=options)
         
         async def select_callback(select_interaction):
+            if not check_permissions(select_interaction):
+                await select_interaction.response.send_message(
+                    "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                    ephemeral=True
+                )
+                return
+            
             config['categoria_id'] = int(select.values[0])
             save_config(config)
             await select_interaction.response.send_message(
@@ -154,6 +199,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_cat, view=view_select, ephemeral=True)
     
     async def pix_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         modal = Modal(title="Configurar PIX")
         
         pix_input = TextInput(
@@ -182,14 +234,35 @@ async def setup(ctx):
         await interaction.response.send_modal(modal)
     
     async def criar_produto_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         modal = CriarProdutoModal()
         await interaction.response.send_modal(modal)
     
     async def criar_drop_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         modal = CriarProdutoDropModal1()
         await interaction.response.send_modal(modal)
     
     async def editar_produto_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos:
             await interaction.response.send_message("❌ Nenhum produto cadastrado!", ephemeral=True)
             return
@@ -206,6 +279,13 @@ async def setup(ctx):
         select = Select(placeholder="Escolha o produto para editar...", options=options[:25])
         
         async def select_callback(select_interaction):
+            if not check_permissions(select_interaction):
+                await select_interaction.response.send_message(
+                    "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                    ephemeral=True
+                )
+                return
+            
             prod_id = select.values[0]
             produto = produtos[prod_id]
             
@@ -225,6 +305,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_edit, view=view_select, ephemeral=True)
     
     async def editar_drop_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos_drop:
             await interaction.response.send_message("❌ Nenhum painel dropdown cadastrado!", ephemeral=True)
             return
@@ -242,6 +329,13 @@ async def setup(ctx):
         select = Select(placeholder="Escolha o painel dropdown para editar...", options=options[:25])
         
         async def select_callback(select_interaction):
+            if not check_permissions(select_interaction):
+                await select_interaction.response.send_message(
+                    "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                    ephemeral=True
+                )
+                return
+            
             drop_id = select.values[0]
             painel = produtos_drop[drop_id]
             
@@ -261,6 +355,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_edit, view=view_select, ephemeral=True)
     
     async def enviar_painel_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos:
             await interaction.response.send_message("❌ Nenhum produto cadastrado!", ephemeral=True)
             return
@@ -277,6 +378,13 @@ async def setup(ctx):
         select = Select(placeholder="Escolha o produto...", options=options[:25])
         
         async def select_callback(select_interaction):
+            if not check_permissions(select_interaction):
+                await select_interaction.response.send_message(
+                    "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                    ephemeral=True
+                )
+                return
+            
             prod_id = select.values[0]
             produto = produtos[prod_id]
             
@@ -322,6 +430,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_enviar, view=view_select, ephemeral=True)
     
     async def enviar_drop_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos_drop:
             await interaction.response.send_message("❌ Nenhum painel dropdown cadastrado!", ephemeral=True)
             return
@@ -339,6 +454,13 @@ async def setup(ctx):
         select = Select(placeholder="Escolha o painel dropdown...", options=options[:25])
         
         async def select_callback(select_interaction):
+            if not check_permissions(select_interaction):
+                await select_interaction.response.send_message(
+                    "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                    ephemeral=True
+                )
+                return
+            
             drop_id = select.values[0]
             painel = produtos_drop[drop_id]
             
@@ -408,6 +530,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_enviar, view=view_select, ephemeral=True)
     
     async def listar_produtos_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos:
             await interaction.response.send_message("❌ Nenhum produto cadastrado ainda!", ephemeral=True)
             return
@@ -429,6 +558,13 @@ async def setup(ctx):
         await interaction.response.send_message(embed=embed_lista, ephemeral=True)
     
     async def listar_drop_callback(interaction):
+        if not check_permissions(interaction):
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         if not produtos_drop:
             await interaction.response.send_message("❌ Nenhum produto dropdown cadastrado ainda!", ephemeral=True)
             return
@@ -497,7 +633,13 @@ async def ajuda(ctx):
         inline=False
     )
     
-    embed.set_footer(text="Use .setup para gerenciar tudo facilmente!")
+    embed.add_field(
+        name="👑 Permissões Necessárias",
+        value="• Dono do Servidor\n• Administrador",
+        inline=False
+    )
+    
+    embed.set_footer(text=f"Solicitado por: {ctx.author.name} | Use .setup para gerenciar tudo facilmente!")
     
     await ctx.send(embed=embed)
 
@@ -525,6 +667,14 @@ async def config_categoria(ctx):
     select = Select(placeholder="Escolha uma categoria...", options=options)
     
     async def select_callback(interaction):
+        # Verificar permissão na interação
+        if interaction.user.id != ctx.guild.owner_id and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         config['categoria_id'] = int(select.values[0])
         save_config(config)
         await interaction.response.send_message(
@@ -1219,6 +1369,14 @@ async def config_pix(ctx):
     modal.on_submit = on_submit
     
     async def button_callback(interaction):
+        # Verificar permissão
+        if interaction.user.id != ctx.guild.owner_id and not interaction.user.guild_permissions.administrator:
+            await interaction.response.send_message(
+                "❌ Você precisa ser Administrador ou Dono do Servidor!",
+                ephemeral=True
+            )
+            return
+        
         await interaction.response.send_modal(modal)
     
     button.callback = button_callback
